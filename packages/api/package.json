@@ -8,18 +8,22 @@
     "./router": "./src/router.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint",
+    "lint:fix": "eslint --fix"
   },
   "dependencies": {
     "@encounter/db": "workspace:*",
     "@encounter/shared": "workspace:*",
-    "@orpc/server": "latest",
+    "@orpc/server": "^1.16.6",
     "@tanstack/ai": "^1.8.0",
     "@tanstack/ai-openrouter": "^1.1.2",
-    "zod": "latest"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@tanstack/eslint-config": "0.5.0",
     "@types/node": "^26.6.11",
+    "eslint": "^9.20.0",
     "typescript": "^6.0.2"
   }
 }

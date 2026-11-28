@@ -1,202 +1,120 @@
-Welcome to your new TanStack Start app!
+# Platform Encounter Sumatra (`platform-ensu`)
 
-# Getting Started
+Monorepo resmi **Platform Encounter Sumatra** yang dibangun dengan **Bun**, **Turborepo**, **TanStack Start** (React 19 + TanStack Router + Nitro), **TanStack AI**, **oRPC**, dan **Drizzle ORM + PostgreSQL (PostGIS / pgvector)** serta **Valkey**.
 
-To run this application:
+---
+
+## Struktur Monorepo
+
+```text
+platform-ensu/
+├── apps/
+│   └── web/                  # @encounter/web — Aplikasi web TanStack Start (SSR + API routes + UI)
+├── packages/
+│   ├── api/                  # @encounter/api — Router oRPC & modul AI Concierge (model-router)
+│   ├── db/                   # @encounter/db — Klien Drizzle ORM, pg Pool, & skema PostgreSQL
+│   ├── design-tokens/        # @encounter/design-tokens — Token CSS desain bersama (theme.css)
+│   └── shared/               # @encounter/shared — Tipe, skema Zod, & utilitas lintas paket
+├── docker/
+│   └── postgres/             # Dockerfile & init.sql ekstensi PostgreSQL (postgis, vector, pg_trgm)
+├── docs/                     # Dokumentasi teknis & panduan micro-tasks
+├── docker-compose.yml        # Layanan lokal PostgreSQL + Valkey
+├── turbo.json                # Pipeline task Turborepo (build, dev, typecheck, lint)
+└── .env.example              # Template variabel lingkungan (jangan taruh secret asli di sini)
+```
+
+---
+
+## Prasyarat Sistem
+
+- **Bun** `1.4.5` (lihat `packageManager` di `package.json`)
+- **Node.js** `>=22.9.0` (dibutuhkan untuk menjalankan hasil build Nitro dengan `--env-file-if-exists`)
+- **Docker & Docker Compose** (untuk PostgreSQL + Valkey lokal)
+
+---
+
+## Panduan Setup Awal (Dari Nol)
+
+### 1. Instal Dependensi
 
 ```bash
 bun install
-bun --bun run dev
 ```
 
-# Building For Production
+### 2. Siapkan Variabel Lingkungan (`.env.local`)
 
-To build this application for production:
+Salin `.env.example` menjadi `.env.local` di **root monorepo** (jangan di dalam `apps/web/`):
 
 ```bash
-bun --bun run build
+cp .env.example .env.local
 ```
 
-## Styling
+Lalu isi nilai rahasia berikut di `.env.local`:
 
-This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.
+- `OPENROUTER_API_KEY`: API key dari dashboard OpenRouter (dibutuhkan untuk menguji AI Concierge `/api/chat`).
+- `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `AFFILIATE_HASH_SALT`: Wajib diisi masing-masing dengan **secret acak unik minimal 32 byte (64 karakter hex)**. Generate 3 nilai berbeda lewat terminal:
 
-### Removing Tailwind CSS
+  ```bash
+  node -e "for (const k of ['BETTER_AUTH_SECRET','ENCRYPTION_KEY','AFFILIATE_HASH_SALT']) console.log(k + '=\"' + require('node:crypto').randomBytes(32).toString('hex') + '\"')"
+  ```
 
-If you prefer not to use Tailwind CSS:
+> **Catatan:** File `.env.local` sudah diabaikan oleh `.gitignore`. Jangan pernah menaruh secret asli ke dalam `.env.example` atau melakukan commit `.env.local`.
 
-1. Remove the demo pages in `src/routes/demo/`
-2. Replace the Tailwind import in `src/styles.css` with your own styles
-3. Remove `tailwindcss()` from the plugins array in `vite.config.ts`
-4. Remove `@tailwindcss/vite` and `tailwindcss` from `package.json`
-
-## Linting & Formatting
-
-This project uses [eslint](https://eslint.org/) and [prettier](https://prettier.io/) for linting and formatting. Eslint is configured using [tanstack/eslint-config](https://tanstack.com/config/latest/docs/eslint). The following scripts are available:
+### 3. Jalankan Database PostgreSQL & Valkey
 
 ```bash
-bun --bun run lint
-bun --bun run format
-bun --bun run check
+bun run db:up
 ```
 
-## Deploy with Nitro
+Perintah di atas menyalakan dua container Docker dari `docker-compose.yml`:
 
-This project uses Nitro as a generic server adapter, so it can run on any Node-compatible host.
+- `ensu-postgres` di port `5432` (sudah mengaktifkan ekstensi `postgis`, `vector`, dan `pg_trgm`)
+- `ensu-valkey` di port `6379` (Valkey 8 untuk caching & rate limiting)
+
+### 4. Jalankan Server Development
 
 ```bash
-npm run build
-node .output/server/index.mjs
+bun run dev
 ```
 
-The build output is a self-contained Node server. To deploy, push the `.output/` directory to your host (Render, Fly.io, your own VPS, etc.) and run the server command above.
+Aplikasi web berjalan di `http://localhost:3000`. Vite pada `apps/web/vite.config.ts` otomatis membaca `.env.local` dari root monorepo (`envDir: '../..'`).
 
-For host-specific presets (Vercel, Netlify, Cloudflare, AWS Lambda, etc.) and tuning, see https://v3.nitro.build/deploy.
+---
 
-## Routing
+## Daftar Perintah Utama (`bun run ...`)
 
-This project uses [TanStack Router](https://tanstack.com/router) with file-based routing. Routes are managed as files in `src/routes`.
+### Pengembangan & Build
 
-### Adding A Route
+| Perintah                            | Fungsi                                                                       |
+| :---------------------------------- | :--------------------------------------------------------------------------- |
+| `bun run dev`                       | Menjalankan seluruh task `dev` via Turborepo (`@encounter/web` di port 3000) |
+| `bun run build`                     | Membangun bundle produksi Nitro ke `apps/web/.output/`                       |
+| `bun --filter @encounter/web start` | Menjalankan hasil build produksi via Node.js dengan `--env-file-if-exists`   |
 
-To add a new route to your application just add a new file in the `./src/routes` directory.
+### Quality Gate (Wajib Lolos Sebelum Commit / PR)
 
-TanStack will automatically generate the content of the route file for you.
+| Perintah            | Fungsi                                                                                      |
+| :------------------ | :------------------------------------------------------------------------------------------ |
+| `bun run typecheck` | Memeriksa tipe TypeScript di seluruh paket (`shared`, `db`, `api`, `web`)                   |
+| `bun run lint`      | Menjalankan ESLint di seluruh paket yang memiliki kode JS/TS (`shared`, `db`, `api`, `web`) |
+| `bun run check`     | Memeriksa kerapian format kode seluruh repo dengan Prettier                                 |
+| `bun run format`    | Merapikan format kode seluruh repo secara otomatis dengan Prettier                          |
 
-Now that you have two routes you can use a `Link` component to navigate between them.
+### Database (`@encounter/db` + Drizzle Kit)
 
-### Adding Links
+| Perintah              | Fungsi                                                               |
+| :-------------------- | :------------------------------------------------------------------- |
+| `bun run db:up`       | Menyalakan container PostgreSQL & Valkey (`docker compose up -d`)    |
+| `bun run db:generate` | Membuat file migrasi SQL dari perubahan `packages/db/src/schema.ts`  |
+| `bun run db:migrate`  | Menjalankan migrasi SQL yang tertunda ke PostgreSQL                  |
+| `bun run db:push`     | Mendorong skema Drizzle langsung ke DB lokal (untuk prototipe cepat) |
+| `bun run db:pull`     | Menarik skema database yang ada ke kode                              |
+| `bun run db:studio`   | Membuka antarmuka web Drizzle Studio untuk melihat isi tabel         |
 
-To use SPA (Single Page Application) navigation you will need to import the `Link` component from `@tanstack/react-router`.
+---
 
-```tsx
-import { Link } from '@tanstack/react-router'
-```
+## Konvensi Pengembangan Penting
 
-Then anywhere in your JSX you can use it like so:
-
-```tsx
-<Link to="/about">About</Link>
-```
-
-This will create a link that will navigate to the `/about` route.
-
-More information on the `Link` component can be found in the [Link documentation](https://tanstack.com/router/v1/docs/framework/react/api/router/linkComponent).
-
-### Using A Layout
-
-In the File Based Routing setup the layout is located in `src/routes/__root.tsx`. Anything you add to the root route will appear in all the routes. The route content will appear in the JSX where you render `{children}` in the `shellComponent`.
-
-Here is an example layout that includes a header:
-
-```tsx
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
-
-export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: 'utf-8' },
-      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'My App' },
-    ],
-  }),
-  shellComponent: ({ children }) => (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        <header>
-          <nav>
-            <Link to="/">Home</Link>
-            <Link to="/about">About</Link>
-          </nav>
-        </header>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  ),
-})
-```
-
-More information on layouts can be found in the [Layouts documentation](https://tanstack.com/router/latest/docs/framework/react/guide/routing-concepts#layouts).
-
-## Server Functions
-
-TanStack Start provides server functions that allow you to write server-side code that seamlessly integrates with your client components.
-
-```tsx
-import { createServerFn } from '@tanstack/react-start'
-
-const getServerTime = createServerFn({
-  method: 'GET',
-}).handler(async () => {
-  return new Date().toISOString()
-})
-
-// Use in a component
-function MyComponent() {
-  const [time, setTime] = useState('')
-
-  useEffect(() => {
-    getServerTime().then(setTime)
-  }, [])
-
-  return <div>Server time: {time}</div>
-}
-```
-
-## API Routes
-
-You can create API routes by using the `server` property in your route definitions:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
-
-export const Route = createFileRoute('/api/hello')({
-  server: {
-    handlers: {
-      GET: () => json({ message: 'Hello, World!' }),
-    },
-  },
-})
-```
-
-## Data Fetching
-
-There are multiple ways to fetch data in your application. You can use TanStack Query to fetch data from a server. But you can also use the `loader` functionality built into TanStack Router to load the data for a route before it's rendered.
-
-For example:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-
-export const Route = createFileRoute('/people')({
-  loader: async () => {
-    const response = await fetch('https://swapi.dev/api/people')
-    return response.json()
-  },
-  component: PeopleComponent,
-})
-
-function PeopleComponent() {
-  const data = Route.useLoaderData()
-  return (
-    <ul>
-      {data.results.map((person) => (
-        <li key={person.name}>{person.name}</li>
-      ))}
-    </ul>
-  )
-}
-```
-
-Loaders simplify your data fetching logic dramatically. Check out more information in the [Loader documentation](https://tanstack.com/router/latest/docs/framework/react/guide/data-loading#loader-parameters).
-
-# Learn More
-
-You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
-
-For TanStack Start specific documentation, visit [TanStack Start](https://tanstack.com/start).
+- **Path Alias Internal Web (`#/*`):** Di dalam `apps/web`, gunakan `#/*` (didefinisikan di `apps/web/package.json#imports` dan `apps/web/tsconfig.json`). Jangan gunakan `@/*`.
+- **AI Mode & Keamanan `/api/chat`:** Mode default lokal adalah `AI_MODE="free_dev"`. Endpoint `POST /api/chat` dilengkapi validasi skema Zod, batas payload, abort propagation, dan fail-closed production guard sampai `better-auth` + rate limiting Valkey diaktifkan penuh.
+- **Dependensi Upstream `@tanstack/devtools-event-client`:** Perintah `intent list` mungkin menampilkan peringatan dua versi transitif (`0.4.4` dari `@tanstack/ai-event-client` dan `0.5.1` dari `@tanstack/devtools-client`). Ini berasal dari paket upstream TanStack dan diisolasi aman oleh `bun.lock` — **jangan** menambahkan `overrides` paksa atau mengubah `bun.lock` secara manual.

@@ -1,7 +1,5 @@
-import {
-  createOpenRouterText,
-  type ProviderPreferences,
-} from '@tanstack/ai-openrouter'
+import { createOpenRouterText } from '@tanstack/ai-openrouter'
+import type { ProviderPreferences } from '@tanstack/ai-openrouter'
 
 export type AiTaskTier = 'tier1_chat_extract' | 'tier2_itinerary_tools'
 export type OpenRouterTextModel = Parameters<typeof createOpenRouterText>[0]

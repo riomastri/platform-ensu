@@ -1,0 +1,11 @@
+/**
+ * @encounter/design-tokens — Sumber token desain resmi Platform Encounter Sumatra.
+ *
+ * Status: Placeholder awal (diimpor oleh apps/web/src/styles.css).
+ * Tambahkan CSS custom properties (warna brand, tipografi, radius, spacing)
+ * di dalam blok :root di bawah ini saat sprint UI/Design System dimulai.
+ */
+:root {
+  --ensu-surface: #ffffff;
+  --ensu-ink: #0f172a;
+}

@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import '@encounter/design-tokens/theme.css';
 
 * {
   box-sizing: border-box;
