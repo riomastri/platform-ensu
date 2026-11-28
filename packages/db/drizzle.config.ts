@@ -5,11 +5,20 @@ config({
   path: ['../../.env.local', '../../.env', '.env.local', '.env'],
 })
 
-const databaseUrl = process.env.DATABASE_URL
+function getMigrationDatabaseUrl(): string {
+  // Prioritaskan koneksi direct (unpooled) agar drizzle-kit tidak terkena batasan PgBouncer pada Neon.
+  const directUrl = process.env.DIRECT_DATABASE_URL?.trim()
+  if (directUrl) {
+    return directUrl
+  }
 
-if (!databaseUrl) {
+  const pooledOrLocalUrl = process.env.DATABASE_URL?.trim()
+  if (pooledOrLocalUrl) {
+    return pooledOrLocalUrl
+  }
+
   throw new Error(
-    'DATABASE_URL is missing. Please configure it in the monorepo root .env.local or .env.',
+    'DIRECT_DATABASE_URL or DATABASE_URL is missing. Please configure it in the monorepo root .env.local or .env.',
   )
 }
 
@@ -24,6 +33,6 @@ export default defineConfig({
     '!raster_columns',
   ],
   dbCredentials: {
-    url: databaseUrl,
+    url: getMigrationDatabaseUrl(),
   },
 })

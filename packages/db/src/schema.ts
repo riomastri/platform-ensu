@@ -1,3 +1,3 @@
-// Placeholder skema domain Encounter Sumatra.
-// Tambahkan definisi pgTable domain di file ini (atau re-export dari sub-file schema).
-export {}
+// Skema utama database Platform Encounter Sumatra.
+// Re-export seluruh tabel auth (better-auth) dan skema domain di bawah ini.
+export * from './schema/auth'

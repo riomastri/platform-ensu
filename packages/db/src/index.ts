@@ -18,12 +18,23 @@ function getDatabaseUrl(): string {
   return databaseUrl
 }
 
-const pool =
-  globalForDb.pgPool ??
-  new Pool({
+function createPool(): Pool {
+  const newPool = new Pool({
     connectionString: getDatabaseUrl(),
-    max: 10,
+    max: 5,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 10_000,
   })
+
+  // Neon memutus koneksi idle saat compute scale-to-zero; listener ini mencegah crash unhandled 'error' event.
+  newPool.on('error', (error) => {
+    console.error('[db] Unexpected error on idle PostgreSQL client:', error)
+  })
+
+  return newPool
+}
+
+const pool = globalForDb.pgPool ?? createPool()
 
 if (process.env.NODE_ENV !== 'production') {
   globalForDb.pgPool = pool
