@@ -1,5 +1,7 @@
 import { Redis } from '@upstash/redis'
 
+const UPSTASH_REQUEST_TIMEOUT_MS = 3000
+
 export class RateLimitConfigurationError extends Error {
   constructor(message: string) {
     super(message)
@@ -70,6 +72,8 @@ export function getUpstashRedisClient(): Redis {
   const client = new Redis({
     url,
     token,
+    // Fresh per-request AbortSignal prevents singleton expiry while aborting hung HTTP requests.
+    signal: () => AbortSignal.timeout(UPSTASH_REQUEST_TIMEOUT_MS),
     // Fast-fail retry so /api/chat fails closed (503) promptly on Upstash outages.
     retry: {
       retries: 1,

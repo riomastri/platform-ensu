@@ -178,8 +178,13 @@ function AuthenticatedChat({
           disabled={isSigningOut}
           onClick={async () => {
             setIsSigningOut(true)
+            setFriendlyError(null)
             try {
               await onSignOut()
+            } catch {
+              setFriendlyError(
+                'Unable to sign out. Please check your connection and try again.',
+              )
             } finally {
               setIsSigningOut(false)
             }
@@ -334,7 +339,10 @@ export function Chat() {
       }}
       onSignOut={async () => {
         setSessionNotice(null)
-        await authClient.signOut()
+        const result = await authClient.signOut()
+        if (result.error) {
+          throw new Error(result.error.message || 'Unable to sign out.')
+        }
         await refetch()
       }}
     />

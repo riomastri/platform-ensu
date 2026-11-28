@@ -7,6 +7,7 @@ const CHAT_BURST_LIMIT = 10
 const CHAT_BURST_WINDOW = '1 m'
 const CHAT_DAILY_LIMIT = 100
 const CHAT_DAILY_WINDOW = '1 d'
+const CHAT_RATE_LIMIT_TIMEOUT_MS = 3000
 
 export interface ChatRateLimitResult {
   allowed: boolean
@@ -41,6 +42,8 @@ function getChatLimiters(): ChatLimiterPair {
     limiter: Ratelimit.slidingWindow(CHAT_BURST_LIMIT, CHAT_BURST_WINDOW),
     prefix: `rl:chat:${envPrefix}:burst`,
     analytics: false,
+    // Nonaktifkan timer fail-open bawaan @upstash/ratelimit (default 5000ms).
+    timeout: 0,
   })
 
   const daily = new Ratelimit({
@@ -48,6 +51,8 @@ function getChatLimiters(): ChatLimiterPair {
     limiter: Ratelimit.slidingWindow(CHAT_DAILY_LIMIT, CHAT_DAILY_WINDOW),
     prefix: `rl:chat:${envPrefix}:daily`,
     analytics: false,
+    // Nonaktifkan timer fail-open bawaan @upstash/ratelimit (default 5000ms).
+    timeout: 0,
   })
 
   const pair: ChatLimiterPair = { burst, daily }
@@ -57,6 +62,33 @@ function getChatLimiters(): ChatLimiterPair {
 
 function computeRetryAfterSeconds(resetAtMs: number): number {
   return Math.max(1, Math.ceil((resetAtMs - Date.now()) / 1000))
+}
+
+async function withFailClosedTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  // Hindari unhandled rejection bila promise asli gagal setelah batas waktu terlampaui.
+  promise.catch(() => undefined)
+
+  const timeoutPromise = new Promise<never>((_resolve, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(
+        new Error(
+          `Upstash rate limit check timed out after ${timeoutMs}ms (fail-closed).`,
+        ),
+      )
+    }, timeoutMs)
+  })
+
+  try {
+    return await Promise.race([promise, timeoutPromise])
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId)
+    }
+  }
 }
 
 /**
@@ -73,7 +105,13 @@ export async function checkChatRateLimit(
 
   const { burst, daily } = getChatLimiters()
 
-  const burstResult = await burst.limit(normalizedUserId)
+  const burstResult = await withFailClosedTimeout(
+    burst.limit(normalizedUserId),
+    CHAT_RATE_LIMIT_TIMEOUT_MS,
+  )
+  if (burstResult.reason === 'timeout') {
+    throw new Error('Upstash rate limit check timed out (fail-closed).')
+  }
   if (!burstResult.success) {
     return {
       allowed: false,
@@ -84,7 +122,13 @@ export async function checkChatRateLimit(
     }
   }
 
-  const dailyResult = await daily.limit(normalizedUserId)
+  const dailyResult = await withFailClosedTimeout(
+    daily.limit(normalizedUserId),
+    CHAT_RATE_LIMIT_TIMEOUT_MS,
+  )
+  if (dailyResult.reason === 'timeout') {
+    throw new Error('Upstash rate limit check timed out (fail-closed).')
+  }
   if (!dailyResult.success) {
     return {
       allowed: false,
