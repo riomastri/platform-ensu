@@ -1,6 +1,85 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+
+function sanitizeChatRequestInit(init?: RequestInit): RequestInit | undefined {
+  if (typeof init?.body !== 'string') {
+    return init
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(init.body)
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      !Array.isArray(parsed) &&
+      'messages' in parsed &&
+      Array.isArray(parsed.messages)
+    ) {
+      const sanitizedMessages = parsed.messages.filter(
+        (message: unknown) =>
+          !(
+            typeof message === 'object' &&
+            message !== null &&
+            'role' in message &&
+            message.role === 'reasoning'
+          ),
+      )
+
+      return {
+        ...init,
+        body: JSON.stringify({
+          ...parsed,
+          messages: sanitizedMessages,
+        }),
+      }
+    }
+  } catch {
+    return init
+  }
+
+  return init
+}
+
+function chatFetchClient(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  return globalThis.fetch(input, sanitizeChatRequestInit(init))
+}
+
+function ThinkingPart({
+  content,
+  hasTextAfter,
+}: {
+  content: string
+  hasTextAfter: boolean
+}) {
+  const [isOpen, setIsOpen] = useState(!hasTextAfter)
+  const prevHasTextAfterRef = useRef(hasTextAfter)
+
+  useEffect(() => {
+    if (!prevHasTextAfterRef.current && hasTextAfter) {
+      setIsOpen(false)
+    }
+    prevHasTextAfterRef.current = hasTextAfter
+  }, [hasTextAfter])
+
+  return (
+    <details
+      open={isOpen}
+      onToggle={(event) => setIsOpen(event.currentTarget.open)}
+      className="rounded border border-slate-200 bg-white/80 p-2 text-xs text-slate-600"
+    >
+      <summary className="cursor-pointer font-medium select-none">
+        {hasTextAfter ? 'Thought process' : 'Thinking...'}
+      </summary>
+      <pre className="mt-2 whitespace-pre-wrap font-sans leading-relaxed">
+        {content}
+      </pre>
+    </details>
+  )
+}
 
 export function Chat() {
   const [input, setInput] = useState('')
@@ -8,7 +87,9 @@ export function Chat() {
   const [threadId] = useState(() => crypto.randomUUID())
 
   const { messages, sendMessage, isLoading, stop, error } = useChat({
-    connection: fetchServerSentEvents('/api/chat'),
+    connection: fetchServerSentEvents('/api/chat', {
+      fetchClient: chatFetchClient,
+    }),
     threadId,
   })
 
@@ -39,18 +120,11 @@ export function Chat() {
                       .some((nextPart) => nextPart.type === 'text')
 
                     return (
-                      <details
+                      <ThinkingPart
                         key={index}
-                        open={!hasTextAfter}
-                        className="rounded border border-slate-200 bg-white/80 p-2 text-xs text-slate-600"
-                      >
-                        <summary className="cursor-pointer font-medium select-none">
-                          {hasTextAfter ? 'Thought process' : 'Thinking...'}
-                        </summary>
-                        <pre className="mt-2 whitespace-pre-wrap font-sans leading-relaxed">
-                          {part.content}
-                        </pre>
-                      </details>
+                        content={part.content}
+                        hasTextAfter={hasTextAfter}
+                      />
                     )
                   }
 

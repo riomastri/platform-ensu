@@ -4,6 +4,13 @@ import type { ProviderPreferences } from '@tanstack/ai-openrouter'
 export type AiTaskTier = 'tier1_chat_extract' | 'tier2_itinerary_tools'
 export type OpenRouterTextModel = Parameters<typeof createOpenRouterText>[0]
 
+export class AiConfigurationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'AiConfigurationError'
+  }
+}
+
 export interface ConciergeModelOptions {
   strictDataPrivacy?: boolean
 }
@@ -82,14 +89,14 @@ export function getConciergeAdapter(
 ) {
   const apiKey = process.env.OPENROUTER_API_KEY?.trim()
   if (!apiKey) {
-    throw new Error('OPENROUTER_API_KEY is not configured.')
+    throw new AiConfigurationError('OPENROUTER_API_KEY is not configured.')
   }
   const modelId = resolveModelId(tier)
   return createOpenRouterText(modelId, apiKey, {
     serverURL:
-      process.env.OPENROUTER_BASE_URL ?? 'https://openrouter.ai/api/v1',
-    httpReferer: process.env.APP_URL ?? 'http://localhost:3000',
-    appTitle: process.env.APP_TITLE ?? 'Platform Encounter Sumatra',
+      process.env.OPENROUTER_BASE_URL?.trim() || 'https://openrouter.ai/api/v1',
+    httpReferer: process.env.APP_URL?.trim() || 'http://localhost:3000',
+    appTitle: process.env.APP_TITLE?.trim() || 'Platform Encounter Sumatra',
   })
 }
 
