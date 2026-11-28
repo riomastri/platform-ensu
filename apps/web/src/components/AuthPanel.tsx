@@ -1,6 +1,20 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 
+import { AlertCircle, Info, Loader2 } from 'lucide-react'
+
+import { Alert, AlertDescription } from '#/components/ui/alert'
+import { Button } from '#/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '#/components/ui/card'
+import { Input } from '#/components/ui/input'
+import { Label } from '#/components/ui/label'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
 import { authClient } from '#/lib/auth-client'
 
 type AuthMode = 'sign-in' | 'sign-up'
@@ -81,142 +95,126 @@ export function AuthPanel({
     }
   }
 
-  return (
-    <section className="mx-auto max-w-md p-8">
-      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="mb-4 flex gap-2 border-b border-slate-200 pb-3">
-          <button
-            type="button"
-            onClick={() => handleModeChange('sign-in')}
+  const authForm = (
+    <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+      {mode === 'sign-up' ? (
+        <div className="space-y-2">
+          <Label htmlFor="auth-name">Name</Label>
+          <Input
+            id="auth-name"
+            type="text"
+            autoComplete="name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
             disabled={isSubmitting}
-            className={
-              mode === 'sign-in'
-                ? 'rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white'
-                : 'rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100'
-            }
-          >
-            Sign In
-          </button>
-          <button
-            type="button"
-            onClick={() => handleModeChange('sign-up')}
-            disabled={isSubmitting}
-            className={
-              mode === 'sign-up'
-                ? 'rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white'
-                : 'rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100'
-            }
-          >
-            Sign Up
-          </button>
+            placeholder="Budi Santoso"
+          />
         </div>
+      ) : null}
 
-        <h2 className="mb-1 text-lg font-semibold text-slate-900">
-          {mode === 'sign-in'
-            ? 'Sign in to Encounter Sumatra'
-            : 'Create your account'}
-        </h2>
-        <p className="mb-4 text-sm text-slate-600">
-          {mode === 'sign-in'
-            ? 'Sign in to chat with the AI Concierge.'
-            : 'Register an account to access the AI Concierge.'}
-        </p>
-
-        {notice ? (
-          <p
-            role="status"
-            className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-2.5 text-sm text-amber-800"
-          >
-            {notice}
-          </p>
-        ) : null}
-
-        <form onSubmit={handleSubmit} className="space-y-3" noValidate>
-          {mode === 'sign-up' ? (
-            <div>
-              <label
-                htmlFor="auth-name"
-                className="mb-1 block text-sm font-medium text-slate-700"
-              >
-                Name
-              </label>
-              <input
-                id="auth-name"
-                type="text"
-                autoComplete="name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                disabled={isSubmitting}
-                placeholder="Budi Santoso"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </div>
-          ) : null}
-
-          <div>
-            <label
-              htmlFor="auth-email"
-              className="mb-1 block text-sm font-medium text-slate-700"
-            >
-              Email
-            </label>
-            <input
-              id="auth-email"
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              disabled={isSubmitting}
-              placeholder="you@example.com"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="auth-password"
-              className="mb-1 block text-sm font-medium text-slate-700"
-            >
-              Password
-            </label>
-            <input
-              id="auth-password"
-              type="password"
-              autoComplete={
-                mode === 'sign-up' ? 'new-password' : 'current-password'
-              }
-              minLength={8}
-              maxLength={128}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              disabled={isSubmitting}
-              placeholder="Minimum 8 characters"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </div>
-
-          {formError ? (
-            <p
-              role="alert"
-              className="rounded-md bg-red-50 p-2.5 text-sm text-red-700"
-            >
-              {formError}
-            </p>
-          ) : null}
-
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isSubmitting
-              ? 'Please wait...'
-              : mode === 'sign-in'
-                ? 'Sign In'
-                : 'Create Account'}
-          </button>
-        </form>
+      <div className="space-y-2">
+        <Label htmlFor="auth-email">Email</Label>
+        <Input
+          id="auth-email"
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          disabled={isSubmitting}
+          placeholder="you@example.com"
+        />
       </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="auth-password">Password</Label>
+        <Input
+          id="auth-password"
+          type="password"
+          autoComplete={
+            mode === 'sign-up' ? 'new-password' : 'current-password'
+          }
+          minLength={8}
+          maxLength={128}
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          disabled={isSubmitting}
+          placeholder="Minimum 8 characters"
+        />
+      </div>
+
+      {formError ? (
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertDescription>{formError}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      <Button type="submit" disabled={isSubmitting} className="w-full">
+        {isSubmitting ? (
+          <>
+            <Loader2 className="animate-spin" />
+            Please wait...
+          </>
+        ) : mode === 'sign-in' ? (
+          'Sign In'
+        ) : (
+          'Create Account'
+        )}
+      </Button>
+    </form>
+  )
+
+  return (
+    <section className="mx-auto w-full max-w-md">
+      <Card>
+        <CardHeader className="space-y-4">
+          <Tabs
+            value={mode}
+            onValueChange={(nextValue) => {
+              if (nextValue === 'sign-in' || nextValue === 'sign-up') {
+                handleModeChange(nextValue)
+              }
+            }}
+          >
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="sign-in" disabled={isSubmitting}>
+                Sign In
+              </TabsTrigger>
+              <TabsTrigger value="sign-up" disabled={isSubmitting}>
+                Sign Up
+              </TabsTrigger>
+            </TabsList>
+
+            <div className="mt-4 space-y-1">
+              <CardTitle>
+                {mode === 'sign-in'
+                  ? 'Sign in to Encounter Sumatra'
+                  : 'Create your account'}
+              </CardTitle>
+              <CardDescription>
+                {mode === 'sign-in'
+                  ? 'Sign in to chat with the AI Concierge.'
+                  : 'Register an account to access the AI Concierge.'}
+              </CardDescription>
+            </div>
+
+            {notice ? (
+              <Alert role="status" className="mt-4">
+                <Info />
+                <AlertDescription>{notice}</AlertDescription>
+              </Alert>
+            ) : null}
+
+            <TabsContent value="sign-in" className="mt-4">
+              {mode === 'sign-in' ? authForm : null}
+            </TabsContent>
+            <TabsContent value="sign-up" className="mt-4">
+              {mode === 'sign-up' ? authForm : null}
+            </TabsContent>
+          </Tabs>
+        </CardHeader>
+        <CardContent className="sr-only" aria-hidden="true" />
+      </Card>
     </section>
   )
 }

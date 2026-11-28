@@ -2,8 +2,30 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
 import { useHydrated } from '@tanstack/react-router'
+import {
+  AlertCircle,
+  Bot,
+  ChevronRight,
+  LogOut,
+  SendHorizontal,
+  Sparkles,
+  Square,
+  User,
+} from 'lucide-react'
 
+import { Alert, AlertDescription } from '#/components/ui/alert'
+import { Badge } from '#/components/ui/badge'
+import { Button } from '#/components/ui/button'
+import { Card, CardContent, CardHeader } from '#/components/ui/card'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '#/components/ui/collapsible'
+import { Input } from '#/components/ui/input'
+import { Skeleton } from '#/components/ui/skeleton'
 import { authClient } from '#/lib/auth-client'
+import { cn } from '#/lib/utils'
 
 import { AuthPanel } from './AuthPanel'
 
@@ -90,18 +112,26 @@ function ThinkingPart({
   }, [hasTextAfter])
 
   return (
-    <details
+    <Collapsible
       open={isOpen}
-      onToggle={(event) => setIsOpen(event.currentTarget.open)}
-      className="rounded border border-slate-200 bg-white/80 p-2 text-xs text-slate-600"
+      onOpenChange={setIsOpen}
+      className="rounded-lg border bg-muted/50 px-3 py-2 text-xs text-muted-foreground"
     >
-      <summary className="cursor-pointer font-medium select-none">
-        {hasTextAfter ? 'Thought process' : 'Thinking...'}
-      </summary>
-      <pre className="mt-2 whitespace-pre-wrap font-sans leading-relaxed">
-        {content}
-      </pre>
-    </details>
+      <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-1.5 text-left font-medium text-foreground/80 select-none hover:text-foreground">
+        <ChevronRight
+          className={cn(
+            'size-3.5 transition-transform duration-150',
+            isOpen && 'rotate-90',
+          )}
+        />
+        <span>{hasTextAfter ? 'Thought process' : 'Thinking...'}</span>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <pre className="mt-2 whitespace-pre-wrap font-sans leading-relaxed text-muted-foreground">
+          {content}
+        </pre>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 
@@ -167,134 +197,170 @@ function AuthenticatedChat({
   const displayedError = friendlyError ?? error?.message ?? null
 
   return (
-    <section className="mx-auto max-w-3xl space-y-4 p-8">
-      <header className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5">
-        <div className="text-sm text-slate-700">
-          Signed in as <span className="font-semibold">{userName}</span>{' '}
-          <span className="text-slate-500">({userEmail})</span>
-        </div>
-        <button
-          type="button"
-          disabled={isSigningOut}
-          onClick={async () => {
-            setIsSigningOut(true)
-            setFriendlyError(null)
-            try {
-              await onSignOut()
-            } catch {
-              setFriendlyError(
-                'Unable to sign out. Please check your connection and try again.',
-              )
-            } finally {
-              setIsSigningOut(false)
-            }
-          }}
-          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isSigningOut ? 'Signing out...' : 'Sign Out'}
-        </button>
-      </header>
-
-      <div className="space-y-3">
-        {messages.map((message) => {
-          const isUser = message.role === 'user'
-
-          return (
-            <article
-              key={message.id}
-              className={
-                isUser
-                  ? 'ml-auto max-w-[85%] rounded-lg bg-slate-900 p-3 text-white'
-                  : 'mr-auto max-w-[85%] rounded-lg border border-slate-200 bg-slate-50 p-3 text-slate-900'
-              }
-            >
-              <div className="mb-1 text-xs font-semibold uppercase tracking-wide opacity-70">
-                {isUser ? 'You' : 'AI Concierge'}
-              </div>
-
-              <div className="space-y-2">
-                {message.parts.map((part, index) => {
-                  if (part.type === 'thinking') {
-                    const hasTextAfter = message.parts
-                      .slice(index + 1)
-                      .some((nextPart) => nextPart.type === 'text')
-
-                    return (
-                      <ThinkingPart
-                        key={index}
-                        content={part.content}
-                        hasTextAfter={hasTextAfter}
-                      />
-                    )
-                  }
-
-                  if (part.type === 'text' && part.content) {
-                    return (
-                      <p key={index} className="whitespace-pre-wrap">
-                        {part.content}
-                      </p>
-                    )
-                  }
-
-                  return null
-                })}
-              </div>
-            </article>
-          )
-        })}
-      </div>
-
-      {displayedError ? (
-        <p
-          role="alert"
-          className="rounded-md bg-red-50 p-3 text-sm text-red-700"
-        >
-          {displayedError}
-        </p>
-      ) : null}
-
-      <form
-        onSubmit={(event) => {
-          event.preventDefault()
-
-          const message = input.trim()
-
-          if (!message || isLoading) {
-            return
-          }
-
-          setFriendlyError(null)
-          sendMessage(message)
-          setInput('')
-        }}
-        className="flex gap-2"
-      >
-        <input
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          placeholder="Ask something..."
-          disabled={isLoading}
-          className="flex-1 rounded-md border border-slate-300 px-3 py-2"
-        />
-
-        {isLoading ? (
-          <button
+    <section className="mx-auto w-full max-w-3xl space-y-4">
+      <Card size="sm">
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <Badge variant="secondary">
+              <Sparkles />
+              AI Concierge
+            </Badge>
+            <span className="text-muted-foreground">
+              Signed in as{' '}
+              <span className="font-medium text-foreground">{userName}</span> (
+              {userEmail})
+            </span>
+          </div>
+          <Button
             type="button"
-            onClick={stop}
-            className="rounded-md bg-red-600 px-4 py-2 text-white"
+            variant="outline"
+            size="sm"
+            disabled={isSigningOut}
+            onClick={async () => {
+              setIsSigningOut(true)
+              setFriendlyError(null)
+              try {
+                await onSignOut()
+              } catch {
+                setFriendlyError(
+                  'Unable to sign out. Please check your connection and try again.',
+                )
+              } finally {
+                setIsSigningOut(false)
+              }
+            }}
           >
-            Stop
-          </button>
-        ) : (
-          <button
-            type="submit"
-            disabled={!input.trim() || isLoading}
-            className="rounded-md bg-slate-900 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
+            <LogOut />
+            {isSigningOut ? 'Signing out...' : 'Sign Out'}
+          </Button>
+        </CardHeader>
+      </Card>
+
+      <Card>
+        <CardContent className="space-y-4">
+          {messages.length === 0 ? (
+            <div className="rounded-lg border border-dashed py-8 text-center text-sm text-muted-foreground">
+              Ask the Encounter Sumatra AI Concierge about destinations, travel
+              routes, or local experiences.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {messages.map((message) => {
+                const isUser = message.role === 'user'
+
+                return (
+                  <article
+                    key={message.id}
+                    className={cn(
+                      'max-w-[85%] rounded-xl px-4 py-3 text-sm',
+                      isUser
+                        ? 'ml-auto bg-primary text-primary-foreground'
+                        : 'mr-auto border bg-card text-card-foreground',
+                    )}
+                  >
+                    <div className="mb-1.5 flex items-center gap-1.5">
+                      <Badge
+                        variant={isUser ? 'secondary' : 'outline'}
+                        className={cn(
+                          isUser &&
+                            'bg-primary-foreground/15 text-primary-foreground',
+                        )}
+                      >
+                        {isUser ? <User /> : <Bot />}
+                        {isUser ? 'You' : 'AI Concierge'}
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-2">
+                      {message.parts.map((part, index) => {
+                        if (part.type === 'thinking') {
+                          const hasTextAfter = message.parts
+                            .slice(index + 1)
+                            .some((nextPart) => nextPart.type === 'text')
+
+                          return (
+                            <ThinkingPart
+                              key={index}
+                              content={part.content}
+                              hasTextAfter={hasTextAfter}
+                            />
+                          )
+                        }
+
+                        if (part.type === 'text' && part.content) {
+                          return (
+                            <p
+                              key={index}
+                              className="leading-relaxed whitespace-pre-wrap"
+                            >
+                              {part.content}
+                            </p>
+                          )
+                        }
+
+                        return null
+                      })}
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          )}
+
+          {displayedError ? (
+            <Alert variant="destructive">
+              <AlertCircle />
+              <AlertDescription>{displayedError}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+
+              const message = input.trim()
+
+              if (!message || isLoading) {
+                return
+              }
+
+              setFriendlyError(null)
+              sendMessage(message)
+              setInput('')
+            }}
+            className="flex gap-2"
           >
-            Send
-          </button>
-        )}
-      </form>
+            <Input
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              placeholder="Ask something..."
+              disabled={isLoading}
+              className="h-9 flex-1"
+            />
+
+            {isLoading ? (
+              <Button
+                type="button"
+                variant="destructive"
+                size="lg"
+                onClick={stop}
+              >
+                <Square />
+                Stop
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                size="lg"
+                disabled={!input.trim() || isLoading}
+              >
+                <SendHorizontal />
+                Send
+              </Button>
+            )}
+          </form>
+        </CardContent>
+      </Card>
     </section>
   )
 }
@@ -306,10 +372,14 @@ export function Chat() {
 
   if (!hydrated || isPending) {
     return (
-      <section className="mx-auto max-w-3xl p-8">
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
-          Checking session...
-        </div>
+      <section className="mx-auto w-full max-w-3xl">
+        <Card>
+          <CardContent className="space-y-3">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-4 w-64" />
+            <p className="text-sm text-muted-foreground">Checking session...</p>
+          </CardContent>
+        </Card>
       </section>
     )
   }
