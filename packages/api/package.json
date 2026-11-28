@@ -1,0 +1,25 @@
+{
+  "name": "@encounter/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./ai": "./src/modules/ai-concierge/index.ts",
+    "./router": "./src/router.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@encounter/db": "workspace:*",
+    "@encounter/shared": "workspace:*",
+    "@orpc/server": "latest",
+    "@tanstack/ai": "^1.8.0",
+    "@tanstack/ai-openrouter": "^1.1.2",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.11",
+    "typescript": "^6.0.2"
+  }
+}

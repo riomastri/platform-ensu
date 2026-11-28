@@ -6,8 +6,15 @@ import { nitro } from 'nitro/vite'
 import viteReact from '@vitejs/plugin-react'
 
 export default defineConfig({
+  envDir: '../..',
   resolve: {
     tsconfigPaths: true,
   },
-  plugins: [devtools(), tailwindcss(), tanstackStart(), nitro(), viteReact()],
+  plugins: [
+    devtools(),
+    tailwindcss(),
+    tanstackStart(),
+    nitro({ preset: 'node-server' }),
+    viteReact(),
+  ],
 })

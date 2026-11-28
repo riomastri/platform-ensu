@@ -1,0 +1,38 @@
+services:
+  postgres:
+    build:
+      context: ./docker/postgres
+    container_name: ensu-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ensu
+      POSTGRES_PASSWORD: ensu_local_dev_password
+      POSTGRES_DB: encounter_sumatra
+    ports:
+      - '5432:5432'
+    volumes:
+      - ensu_pg_data:/var/lib/postgresql
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-extensions.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ensu -d encounter_sumatra']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: ensu-valkey
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - ensu_valkey_data:/data
+    healthcheck:
+      test: ['CMD', 'valkey-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  ensu_pg_data:
+  ensu_valkey_data:

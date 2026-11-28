@@ -8,6 +8,7 @@ dist-ssr
 .tanstack
 .wrangler
 .output
+.turbo
 .vinxi
 __unconfig*
 todos.json
@@ -15,3 +16,10 @@ todos.json
 # Environment variables
 .env*
 !.env.example
+
+# Internal task guides
+docs/micro-tasks/
+
+# Local agent skills
+.agents/
+skills-lock.json

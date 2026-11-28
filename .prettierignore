@@ -1,3 +1,15 @@
+node_modules
 package-lock.json
 pnpm-lock.yaml
 yarn.lock
+bun.lock
+.turbo
+.output
+.tanstack
+.nitro
+dist
+dist-ssr
+apps/web/src/routeTree.gen.ts
+.agents/skills
+skills-lock.json
+docs/micro-tasks/
