@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./ai": "./src/modules/ai-concierge/index.ts",
+    "./rate-limit": "./src/modules/rate-limit/index.ts",
     "./router": "./src/router.ts"
   },
   "scripts": {
@@ -18,6 +19,8 @@
     "@orpc/server": "^1.16.6",
     "@tanstack/ai": "^1.8.0",
     "@tanstack/ai-openrouter": "^1.1.2",
+    "@upstash/ratelimit": "2.2.3",
+    "@upstash/redis": "1.41.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
