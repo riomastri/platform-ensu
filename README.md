@@ -1,6 +1,6 @@
 # Platform Encounter Sumatra (`platform-ensu`)
 
-Monorepo resmi **Platform Encounter Sumatra** yang dibangun dengan **Bun**, **Turborepo**, **TanStack Start** (React 19 + TanStack Router + Nitro), **TanStack AI**, **oRPC**, dan **Drizzle ORM + PostgreSQL (PostGIS / pgvector)** serta **Valkey**.
+Monorepo resmi **Platform Encounter Sumatra** yang dibangun dengan **Bun**, **Turborepo**, **TanStack Start** (React 19 + TanStack Router + Nitro), **TanStack AI**, **Better Auth**, **oRPC**, **Drizzle ORM + Neon PostgreSQL**, dan **Upstash Redis REST**.
 
 ---
 
@@ -11,14 +11,14 @@ platform-ensu/
 ├── apps/
 │   └── web/                  # @encounter/web — Aplikasi web TanStack Start (SSR + API routes + UI)
 ├── packages/
-│   ├── api/                  # @encounter/api — Router oRPC & modul AI Concierge (model-router)
-│   ├── db/                   # @encounter/db — Klien Drizzle ORM, pg Pool, & skema PostgreSQL
+│   ├── api/                  # @encounter/api — Router oRPC, AI Concierge, & Rate Limiter Upstash
+│   ├── db/                   # @encounter/db — Klien Drizzle ORM, Neon pg Pool, & skema PostgreSQL
 │   ├── design-tokens/        # @encounter/design-tokens — Token CSS desain bersama (theme.css)
 │   └── shared/               # @encounter/shared — Tipe, skema Zod, & utilitas lintas paket
 ├── docker/
-│   └── postgres/             # Dockerfile & init.sql ekstensi PostgreSQL (postgis, vector, pg_trgm)
+│   └── postgres/             # Dockerfile & init.sql ekstensi PostgreSQL (opsi lokal offline)
 ├── docs/                     # Dokumentasi teknis & panduan micro-tasks
-├── docker-compose.yml        # Layanan lokal PostgreSQL + Valkey
+├── docker-compose.yml        # Opsi offline lokal PostgreSQL + Valkey
 ├── turbo.json                # Pipeline task Turborepo (build, dev, typecheck, lint)
 └── .env.example              # Template variabel lingkungan (jangan taruh secret asli di sini)
 ```
@@ -29,7 +29,9 @@ platform-ensu/
 
 - **Bun** `1.4.5` (lihat `packageManager` di `package.json`)
 - **Node.js** `>=22.9.0` (dibutuhkan untuk menjalankan hasil build Nitro dengan `--env-file-if-exists`)
-- **Docker & Docker Compose** (untuk PostgreSQL + Valkey lokal)
+- **Akun Neon PostgreSQL** (gunakan branch `dev` untuk pengembangan lokal)
+- **Akun Upstash Redis** (REST API untuk rate limiting `/api/chat`)
+- **Docker & Docker Compose** _(opsional, hanya jika ingin menjalankan PostgreSQL + Valkey lokal secara offline)_
 
 ---
 
@@ -51,8 +53,15 @@ cp .env.example .env.local
 
 Lalu isi nilai rahasia berikut di `.env.local`:
 
-- `OPENROUTER_API_KEY`: API key dari dashboard OpenRouter (dibutuhkan untuk menguji AI Concierge `/api/chat`).
-- `BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `AFFILIATE_HASH_SALT`: Wajib diisi masing-masing dengan **secret acak unik minimal 32 byte (64 karakter hex)**. Generate 3 nilai berbeda lewat terminal:
+- **Neon PostgreSQL (Branch `dev`):**
+  - `DATABASE_URL`: String koneksi **Pooled** (hostname mengandung `-pooler`, akhiran `?sslmode=require`) untuk runtime aplikasi.
+  - `DIRECT_DATABASE_URL`: String koneksi **Direct / Unpooled** (tanpa `-pooler`, akhiran `?sslmode=require`) khusus untuk migrasi `drizzle-kit`.
+- **Upstash Redis REST:**
+  - `UPSTASH_REDIS_REST_URL` & `UPSTASH_REDIS_REST_TOKEN`: Salin dari tab **REST API** pada dashboard database Upstash Redis.
+- **OpenRouter AI:**
+  - `OPENROUTER_API_KEY`: API key dari dashboard OpenRouter (dibutuhkan untuk menguji AI Concierge `/api/chat`).
+- **Secrets Aplikasi (`BETTER_AUTH_SECRET`, `ENCRYPTION_KEY`, `AFFILIATE_HASH_SALT`):**
+  Wajib diisi masing-masing dengan **secret acak unik minimal 32 byte (64 karakter hex)**. Generate 3 nilai berbeda lewat terminal:
 
   ```bash
   node -e "for (const k of ['BETTER_AUTH_SECRET','ENCRYPTION_KEY','AFFILIATE_HASH_SALT']) console.log(k + '=\"' + require('node:crypto').randomBytes(32).toString('hex') + '\"')"
@@ -60,16 +69,15 @@ Lalu isi nilai rahasia berikut di `.env.local`:
 
 > **Catatan:** File `.env.local` sudah diabaikan oleh `.gitignore`. Jangan pernah menaruh secret asli ke dalam `.env.example` atau melakukan commit `.env.local`.
 
-### 3. Jalankan Database PostgreSQL & Valkey
+### 3. Jalankan Migrasi Skema ke Neon (Branch `dev`)
 
 ```bash
-bun run db:up
+bun run db:migrate
 ```
 
-Perintah di atas menyalakan dua container Docker dari `docker-compose.yml`:
+_(Jika kamu baru mengubah skema di `packages/db/src/schema/`, jalankan `bun run db:generate` terlebih dahulu untuk membuat file migrasi SQL baru di `packages/db/drizzle/`, periksa SQL-nya, lalu jalankan `bun run db:migrate`)._
 
-- `ensu-postgres` di port `5432` (sudah mengaktifkan ekstensi `postgis`, `vector`, dan `pg_trgm`)
-- `ensu-valkey` di port `6379` (Valkey 8 untuk caching & rate limiting)
+> **Opsi Offline (Docker Lokal):** Jika bekerja tanpa koneksi Neon, kamu dapat menyalakan container lokal PostgreSQL + Valkey dengan `bun run db:up` dan mengarahkan `DATABASE_URL` serta `DIRECT_DATABASE_URL` ke PostgreSQL lokal tersebut. Catatan: endpoint `/api/chat` tetap membutuhkan akses Upstash Redis REST (`UPSTASH_REDIS_REST_URL` & `UPSTASH_REDIS_REST_TOKEN`) secara _fail-closed_.
 
 ### 4. Jalankan Server Development
 
@@ -102,19 +110,19 @@ Aplikasi web berjalan di `http://localhost:3000`. Vite pada `apps/web/vite.confi
 
 ### Database (`@encounter/db` + Drizzle Kit)
 
-| Perintah              | Fungsi                                                               |
-| :-------------------- | :------------------------------------------------------------------- |
-| `bun run db:up`       | Menyalakan container PostgreSQL & Valkey (`docker compose up -d`)    |
-| `bun run db:generate` | Membuat file migrasi SQL dari perubahan `packages/db/src/schema.ts`  |
-| `bun run db:migrate`  | Menjalankan migrasi SQL yang tertunda ke PostgreSQL                  |
-| `bun run db:push`     | Mendorong skema Drizzle langsung ke DB lokal (untuk prototipe cepat) |
-| `bun run db:pull`     | Menarik skema database yang ada ke kode                              |
-| `bun run db:studio`   | Membuka antarmuka web Drizzle Studio untuk melihat isi tabel         |
+| Perintah              | Fungsi                                                                                  |
+| :-------------------- | :-------------------------------------------------------------------------------------- |
+| `bun run db:generate` | Membuat file migrasi SQL dari perubahan `packages/db/src/schema.ts`                     |
+| `bun run db:migrate`  | Menjalankan migrasi SQL yang tertunda ke Neon via `DIRECT_DATABASE_URL`                 |
+| `bun run db:push`     | Mendorong skema Drizzle langsung ke DB (hanya untuk prototipe lokal, hindari di prod)   |
+| `bun run db:pull`     | Menarik skema database yang ada ke kode                                                 |
+| `bun run db:studio`   | Membuka antarmuka web Drizzle Studio untuk melihat isi tabel                            |
+| `bun run db:up`       | _(Opsional offline)_ Menyalakan container PostgreSQL & Valkey dari `docker-compose.yml` |
 
 ---
 
 ## Konvensi Pengembangan Penting
 
 - **Path Alias Internal Web (`#/*`):** Di dalam `apps/web`, gunakan `#/*` (didefinisikan di `apps/web/package.json#imports` dan `apps/web/tsconfig.json`). Jangan gunakan `@/*`.
-- **AI Mode & Keamanan `/api/chat`:** Mode default lokal adalah `AI_MODE="free_dev"`. Endpoint `POST /api/chat` dilengkapi validasi skema Zod, batas payload, abort propagation, dan fail-closed production guard sampai `better-auth` + rate limiting Valkey diaktifkan penuh.
+- **AI Mode & Keamanan `/api/chat`:** Mode default lokal adalah `AI_MODE="free_dev"`. Endpoint `POST /api/chat` mewajibkan sesi terautentikasi (`better-auth` → `401` bila belum login), menerapkan rate limiter sliding-window Upstash Redis REST secara _fail-closed_ (`429` saat melebihi batas, `503` bila Upstash gagal), serta validasi skema Zod, batas payload, dan abort propagation.
 - **Dependensi Upstream `@tanstack/devtools-event-client`:** Perintah `intent list` mungkin menampilkan peringatan dua versi transitif (`0.4.4` dari `@tanstack/ai-event-client` dan `0.5.1` dari `@tanstack/devtools-client`). Ini berasal dari paket upstream TanStack dan diisolasi aman oleh `bun.lock` — **jangan** menambahkan `overrides` paksa atau mengubah `bun.lock` secara manual.

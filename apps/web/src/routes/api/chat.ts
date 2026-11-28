@@ -4,11 +4,18 @@ import {
   getConciergeModelConfig,
 } from '@encounter/api/ai'
 import {
+  checkChatRateLimit,
+  createRateLimitHeaders,
+} from '@encounter/api/rate-limit'
+import type { ChatRateLimitResult } from '@encounter/api/rate-limit'
+import {
   chat,
   chatParamsFromRequestBody,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { z } from 'zod'
+
+import { getAuth } from '#/lib/auth.server'
 
 const MAX_REQUEST_BYTES = 64 * 1024
 const MAX_MESSAGES = 30
@@ -138,31 +145,63 @@ async function* withStreamCleanup<T>(
   }
 }
 
-async function enforceChatAccessGuard(
-  _request: Request,
-): Promise<Response | null> {
-  // Fail-closed outside local development until Better Auth session + Valkey rate limit are wired.
-  if (process.env.NODE_ENV !== 'development') {
-    console.error(
-      '[POST /api/chat] Blocked: auth and rate-limit middleware are not configured for non-development environments.',
-    )
-    return Response.json(
-      { error: 'Chat endpoint is not enabled in this environment.' },
-      { status: 503 },
-    )
-  }
-  return null
-}
-
 export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const guardResponse = await enforceChatAccessGuard(request)
-        if (guardResponse) {
-          return guardResponse
+        // 1. Verifikasi sesi pengguna terlebih dahulu sebelum membaca body request.
+        let session: Awaited<
+          ReturnType<ReturnType<typeof getAuth>['api']['getSession']>
+        >
+        try {
+          session = await getAuth().api.getSession({
+            headers: request.headers,
+          })
+        } catch (error) {
+          console.error('[POST /api/chat] Session check failed:', error)
+          return Response.json(
+            { error: 'Authentication service is temporarily unavailable.' },
+            { status: 503 },
+          )
         }
 
+        if (!session?.user.id) {
+          return Response.json(
+            { error: 'Authentication required.' },
+            { status: 401 },
+          )
+        }
+
+        // 2. Terapkan rate limit Upstash secara fail-closed berdasarkan userId.
+        let rateLimitResult: ChatRateLimitResult
+        try {
+          rateLimitResult = await checkChatRateLimit(session.user.id)
+        } catch (error) {
+          console.error(
+            '[POST /api/chat] Rate limit check failed (fail-closed):',
+            error,
+          )
+          return Response.json(
+            { error: 'AI service is temporarily unavailable.' },
+            { status: 503 },
+          )
+        }
+
+        const rateLimitHeaders = createRateLimitHeaders(rateLimitResult)
+        if (!rateLimitResult.allowed) {
+          return Response.json(
+            {
+              error:
+                'Too many requests. Please wait before sending another message.',
+            },
+            {
+              status: 429,
+              headers: rateLimitHeaders,
+            },
+          )
+        }
+
+        // 3. Validasi ukuran payload, format JSON/AG-UI, dan batas pesan.
         const contentLengthHeader = request.headers.get('content-length')
         if (
           contentLengthHeader &&
@@ -269,8 +308,11 @@ export const Route = createFileRoute('/api/chat')({
             }),
             cleanupAbortListener,
           )
-          // Return SSE response linked to the same abortController.
-          return toServerSentEventsResponse(stream, { abortController })
+          // Return SSE response linked to the same abortController + X-RateLimit-* headers.
+          return toServerSentEventsResponse(stream, {
+            abortController,
+            headers: rateLimitHeaders,
+          })
         } catch (error) {
           cleanupAbortListener()
           console.error('[POST /api/chat] Error:', error)
