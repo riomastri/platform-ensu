@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { getConciergeAdapter } from '@encounter/api/ai'
+import { getConciergeModelConfig } from '@encounter/api/ai'
 import {
   chat,
   chatParamsFromRequestBody,
@@ -146,8 +146,9 @@ export const Route = createFileRoute('/api/chat')({
             )
           }
 
-          // Initialize AI adapter via centralized model router (validates server config).
-          const adapter = getConciergeAdapter('tier1_chat_extract')
+          // Initialize AI adapter and privacy routing preferences via centralized model router.
+          const { adapter, providerPreferences } =
+            getConciergeModelConfig('tier1_chat_extract')
           // Execute AI chat.
           const stream = chat({
             adapter,
@@ -155,6 +156,9 @@ export const Route = createFileRoute('/api/chat')({
             threadId,
             runId,
             abortController,
+            ...(providerPreferences
+              ? { modelOptions: { provider: providerPreferences } }
+              : {}),
           })
           // Return SSE response linked to the same abortController.
           return toServerSentEventsResponse(stream, { abortController })
